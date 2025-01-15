@@ -20,6 +20,16 @@ var request = new HTTPRequest()
     Path = line0[1],
     Version = line0[2]
 };
-var response = request.Path == "/"? $"{request.Version} 200 OK\r\n\r\n"
-                                    :$"{request.Version} 404 Not Found\r\n\r\n";
+Console.WriteLine($"Got the request {request}");
+string response;
+if (request.Path == "/")
+    response = $"{request.Version} 200 OK\r\n\r\n";
+else if (request.Path.StartsWith("/echo/"))
+{
+    string msg = request.Path[6..];
+    response = $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {msg.Length}\r\n\r\n{msg}";
+}
+else
+    response = $"{request.Version} 404 Not Found\r\n\r\n";
 socket.Send(Encoding.UTF8.GetBytes(response));
+Console.WriteLine($"send the response\n{response}");
