@@ -21,23 +21,28 @@
 import threading
 import requests
 
-def make_request(path, headers):
+def make_request(path, headers, results, index):
     try:
         response = requests.get(f"http://localhost:4221{path}", headers=headers)
-        print(f"Path: {path}, Response: {response.text}")
+        results[index] = f"Path: {path}, Response: {response.status_code} - {response.text} - {response.headers}"
     except Exception as e:
-        print(f"Error: {e}")
+        results[index] = f"Path: {path}, Error: {e}"
 
 def send_requests(concurrent_requests, path_template, headers):
     threads = []
+    results = [None] * concurrent_requests  # Preallocate space for results
     for i in range(concurrent_requests):
         path = path_template.format(i=i + 1)
-        thread = threading.Thread(target=make_request, args=(path, headers))
+        thread = threading.Thread(target=make_request, args=(path, headers, results, i))
         threads.append(thread)
         thread.start()
 
     for thread in threads:
         thread.join()
+
+    # Print results in order
+    for result in results:
+        print(result)
 
 if __name__ == "__main__":
     # Prompt the user for input
