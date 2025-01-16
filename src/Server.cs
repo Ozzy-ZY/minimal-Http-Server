@@ -29,6 +29,14 @@ else if (request.Path.StartsWith("/echo/"))
     string msg = request.Path[6..];
     response = $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {msg.Length}\r\n\r\n{msg}";
 }
+
+else if (request.Path.StartsWith("/user-agent"))
+{
+    var header = linesOfResponse.First(x => x.ToLower().Contains("user-agent: ")); // finding the header from the headers
+    var userAgentValue = header.Replace(header[..12], ""); // removing the header key leaving the value
+    response = 
+        $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgentValue.Length}\r\n\r\n{userAgentValue}";
+}
 else
     response = $"{request.Version} 404 Not Found\r\n\r\n";
 socket.Send(Encoding.UTF8.GetBytes(response));
