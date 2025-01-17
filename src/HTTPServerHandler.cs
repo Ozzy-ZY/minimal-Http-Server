@@ -5,6 +5,29 @@ namespace codecrafters_http_server;
 
 public class HttpServerHandler
 {
+    private Dictionary<string, string> ParseHeaders(string headers)
+    {
+        var headersDictionary = new Dictionary<string, string>();
+        var lines = headers.Split("\r\n");
+        for (int i = 0; i < lines.Length; i++)
+        {
+            for (int j = 0; j < lines[i].Length; j++)
+            {// find the first : and then extract the key and value then end the iteration
+                if (lines[i][j] == ':')
+                {
+                    var key = lines[i][..j];
+                    var value = lines[i][(j + 1)..];
+                    value = value.Trim('\r', '\n', ' ');
+                    headersDictionary.TryAdd(key, value);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"Found header: {key}={value}");
+                    Console.ResetColor();
+                    break;
+                }
+            }
+        }
+        return headersDictionary;
+    }
     public Task TakeRequest(Socket socket)
     {
         try
@@ -32,19 +55,31 @@ public class HttpServerHandler
         try
         {
 
-            var linesOfResponse = rawRequest.Split("\r\n"); // \r\n is the CRLF
-            var line0 = linesOfResponse[0].Split(" ");
+            var linesOfRequest = rawRequest.Split("\r\n"); // \r\n is the CRLF
+            var line0 = linesOfRequest[0].Split(" ");
             if (line0.Length < 3)
             {
                 Console.WriteLine("Invalid request line");
                 return "HTTP/1.1 400 Bad Request\r\n\r\n";
             }
-
+            StringBuilder headersAsString = new StringBuilder();
+            foreach (var line in linesOfRequest.Skip(1))
+            {
+                if (line == "")
+                {
+                    break;
+                }
+                headersAsString.AppendLine(line);
+            }
+            
+            var body = rawRequest.Split("\r\n\r\n")[1];
             var request = new HTTPRequest()
             {
                 Method = line0[0],
                 Path = line0[1],
-                Version = line0[2]
+                Version = line0[2],
+                Body = body,
+                Headers = ParseHeaders(headersAsString.ToString())
             };
             Console.WriteLine($"Got the request {request}");
             if (request.Path == "/")
@@ -60,7 +95,7 @@ public class HttpServerHandler
             if (request.Path.StartsWith("/user-agent"))
             {
                 var header =
-                    linesOfResponse.FirstOrDefault(x =>
+                    linesOfRequest.FirstOrDefault(x =>
                         x.ToLower().Contains("user-agent: ")); // finding the header from the headers
                 if (header == null)
                     return "HTTP/1.1 400 Bad Request\r\n\r\n";
@@ -84,6 +119,10 @@ public class HttpServerHandler
     }
     private string HandleFileRequest(HTTPRequest request)
     {
+        if (request.Method == "POST")
+        {
+            
+        }
         string response = $"{request.Version} 404 Not Found\r\n\r\n";
         // the files should be next to the .exe file on the Server or the path is relative from there
         var dir = Environment.CurrentDirectory;
