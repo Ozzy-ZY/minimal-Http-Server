@@ -1,4 +1,6 @@
-﻿namespace codecrafters_http_server;
+﻿using System.Text;
+
+namespace codecrafters_http_server;
 
 
 public class HTTPRequest()
@@ -10,6 +12,16 @@ public class HTTPRequest()
     public string Body { get; set; }
     public override string ToString()
     {
-        return $"{Method} {Version} {Path}";
+        StringBuilder sb = new StringBuilder();
+        sb.Append("HTTPRequest");
+        sb.Append("\nMethod: " + Method);
+        sb.Append("\nPath: " + Path);
+        sb.Append("\nVersion: " + Version);
+        foreach (var header in Headers.Keys)
+        {
+            sb.Append("\n" + header + ": " + Headers[header]);
+        }
+        sb.Append("\nBody: " + Body);
+        return sb.ToString();
     }
 }
