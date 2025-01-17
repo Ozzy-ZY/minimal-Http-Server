@@ -9,11 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="tmp\" />
+    <None Include="bin\Debug\net9.0\foo.txt" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="bin\Debug\net9.0\foo.txt" />
+    <Folder Include="bin\Debug\net9.0\" />
   </ItemGroup>
 
 </Project>

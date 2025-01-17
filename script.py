@@ -23,7 +23,7 @@ import requests
 
 def make_request(path, headers, results, index):
     try:
-        response = requests.get(f"http://localhost:4221{path}", headers=headers,data="Bodddyyyyyyyy\r\nno way this is true")
+        response = requests.post(f"http://localhost:4221{path}", headers=headers,data="Bodddyyyyyyyy\r\nno way this is true")
         results[index] = f"Path: {path}, Response: {response.status_code} - {response.text} - {response.headers}"
     except Exception as e:
         results[index] = f"Path: {path}, Error: {e}"

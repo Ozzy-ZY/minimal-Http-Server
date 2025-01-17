@@ -28,7 +28,7 @@ public class HttpServerHandler
         }
         return headersDictionary;
     }
-    public Task TakeRequest(Socket socket)
+    public async Task<Task> TakeRequest(Socket socket)
     {
         try
         {
@@ -36,7 +36,8 @@ public class HttpServerHandler
             var requestBuffer = new byte[1024];
             socket.Receive(requestBuffer);
             string rawRequest = Encoding.UTF8.GetString(requestBuffer);
-            string response = HandleRequest(rawRequest);
+            string response = await HandleRequest(rawRequest);
+            Console.WriteLine($"Sending the response: {response}");
             socket.Send(Encoding.UTF8.GetBytes(response));
         }
         catch (Exception ex)
@@ -50,7 +51,7 @@ public class HttpServerHandler
         return Task.CompletedTask;
     }
 
-    private string HandleRequest(string rawRequest)
+    private async Task<string> HandleRequest(string rawRequest)
     {
         try
         {
@@ -71,15 +72,16 @@ public class HttpServerHandler
                 }
                 headersAsString.AppendLine(line);
             }
-            
-            var body = rawRequest.Split("\r\n\r\n")[1];
+            var headers = ParseHeaders(headersAsString.ToString());
+            var bodyLength = int.Parse(headers["Content-Length"]);
+            var body = rawRequest.Split("\r\n\r\n")[1][..bodyLength]; // to skip the null characters
             var request = new HTTPRequest()
             {
                 Method = line0[0],
                 Path = line0[1],
                 Version = line0[2],
                 Body = body,
-                Headers = ParseHeaders(headersAsString.ToString())
+                Headers = headers
             };
             Console.WriteLine($"Got the request {request}");
             if (request.Path == "/")
@@ -106,7 +108,7 @@ public class HttpServerHandler
             }
             if (request.Path.StartsWith("/files/"))
             {
-                 return HandleFileRequest(request);
+                 return await HandleFileRequestAsync(request);
             }
             
             return $"{request.Version} 404 Not Found\r\n\r\n";
@@ -117,20 +119,23 @@ public class HttpServerHandler
             return "HTTP/1.1 500 Internal Server Error\r\n\r\n";
         }
     }
-    private string HandleFileRequest(HTTPRequest request)
+    private async Task<string> HandleFileRequestAsync(HTTPRequest request)
     {
-        if (request.Method == "POST")
-        {
-            
-        }
         string response = $"{request.Version} 404 Not Found\r\n\r\n";
-        // the files should be next to the .exe file on the Server or the path is relative from there
+
         var dir = Environment.CurrentDirectory;
         var fileName = request.Path.Split("/")[2];
         var pathFile = $"{dir}/{fileName}";
+        if (request.Method == "POST")
+        {
+            await File.WriteAllTextAsync(pathFile, request.Body);
+            response = "HTTP/1.1 201 Created\r\n\r\n";
+            return response;
+        }
+        // the files should be next to the .exe file on the Server or the path is relative from there
         if (File.Exists(pathFile))
         {
-            var contentFile = File.ReadAllText(pathFile);
+            var contentFile = await File.ReadAllTextAsync(pathFile);
             response =
                 $"{request.Version} 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {contentFile.Length}\r\n\r\n{contentFile}";
             return response;
