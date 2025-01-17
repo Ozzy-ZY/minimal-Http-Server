@@ -5,6 +5,10 @@ namespace codecrafters_http_server;
 
 public class HttpServerHandler
 {
+    private List<string> SupportedEncodings = new List<string>
+    {
+        "gzip"
+    };
     private Dictionary<string, string> ParseHeaders(string headers)
     {
         var headersDictionary = new Dictionary<string, string>();
@@ -36,7 +40,8 @@ public class HttpServerHandler
             var requestBuffer = new byte[1024];
             socket.Receive(requestBuffer);
             string rawRequest = Encoding.UTF8.GetString(requestBuffer);
-            string response = await HandleRequest(rawRequest);
+            var response = (await HandleRequest(rawRequest))
+                .HandleBodyCompression();
             Console.WriteLine($"Sending the response: {response}");
             socket.Send(Encoding.UTF8.GetBytes(response));
         }
@@ -51,17 +56,26 @@ public class HttpServerHandler
         return Task.CompletedTask;
     }
 
-    private async Task<string> HandleRequest(string rawRequest)
+    private async Task<HTTPRequest> HandleRequest(string rawRequest)
     {
         try
         {
 
             var linesOfRequest = rawRequest.Split("\r\n"); // \r\n is the CRLF
             var line0 = linesOfRequest[0].Split(" ");
+            var response = new HTTPRequest()
+            {
+                Version = "HTTP/1.1",
+                MethodOrCode = "404",
+                PathOrMessage = "Not Found",
+                IsResponse = true
+            };
             if (line0.Length < 3)
             {
                 Console.WriteLine("Invalid request line");
-                return "HTTP/1.1 400 Bad Request\r\n\r\n";
+                response.MethodOrCode = "400";
+                response.PathOrMessage = "Bad Request";
+                return response;
             }
             StringBuilder headersAsString = new StringBuilder();
             foreach (var line in linesOfRequest.Skip(1))
@@ -73,68 +87,100 @@ public class HttpServerHandler
                 headersAsString.AppendLine(line);
             }
             var headers = ParseHeaders(headersAsString.ToString());
+            if(headers.TryGetValue("accept-encoding", out var header) && SupportedEncodings.Contains(header))
+                response.Headers.TryAdd("content-encoding", header);
             var bodyLength = int.Parse(headers["content-length"]);
             var body = rawRequest.Split("\r\n\r\n")[1][..bodyLength]; // to skip the null characters
             var request = new HTTPRequest()
             {
-                Method = line0[0],
-                Path = line0[1],
+                MethodOrCode = line0[0],
+                PathOrMessage = line0[1],
                 Version = line0[2],
                 Body = body,
                 Headers = headers
             };
             Console.WriteLine($"Got the request {request}");
-            if (request.Path == "/")
-                return $"{request.Version} 200 OK\r\n\r\n";
-            
-            if (request.Path.StartsWith("/echo/"))
+            if (request.PathOrMessage == "/")
             {
-                string msg = request.Path[6..];
-                return 
-                    $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {msg.Length}\r\n\r\n{msg}";
+                response.PathOrMessage = "OK";
+                response.MethodOrCode = "200";
+                return response;
             }
 
-            if (request.Path.StartsWith("/user-agent"))
+            if (request.PathOrMessage.StartsWith("/echo/"))
+            {
+                string msg = request.PathOrMessage[6..];
+                response.PathOrMessage = "OK";
+                response.MethodOrCode = "200";
+                response.Headers.TryAdd("Content-Type", "text/plain");
+                response.Headers.TryAdd("Content-Length", msg.Length.ToString());
+                response.Body = msg;
+                return response;
+            }
+
+            if (request.PathOrMessage.StartsWith("/user-agent"))
             {
                 if (headers.TryGetValue("user-agent", out var userAgentValue))
                 {
-                    return
-                        $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgentValue.Length}\r\n\r\n{userAgentValue}";
+                    response.PathOrMessage = "OK";
+                    response.MethodOrCode = "200";
+                    response.Headers.TryAdd("Content-Type", "text/plain");
+                    response.Headers.TryAdd("Content-Length", userAgentValue.Length.ToString());
+                    response.Body = userAgentValue;
+                    return response;
                 }
-                return "HTTP/1.1 400 Bad Request\r\n\r\n";
+                response.PathOrMessage = "Bad Request";
+                response.MethodOrCode = "400";
+                return response;
             }
-            if (request.Path.StartsWith("/files/"))
+            if (request.PathOrMessage.StartsWith("/files/"))
             {
                  return await HandleFileRequestAsync(request);
             }
-            
-            return $"{request.Version} 404 Not Found\r\n\r\n";
+
+            return response;
         }
         catch (Exception e)
         {
             Console.WriteLine(e.Message);
-            return "HTTP/1.1 500 Internal Server Error\r\n\r\n";
+            return new HTTPRequest()
+            {
+                IsResponse = true,
+                MethodOrCode = "500",
+                PathOrMessage = "Internal Server Error",
+            };
         }
     }
-    private async Task<string> HandleFileRequestAsync(HTTPRequest request)
-    {
-        string response = $"{request.Version} 404 Not Found\r\n\r\n";
 
+
+    private async Task<HTTPRequest> HandleFileRequestAsync(HTTPRequest request)
+    {
+        var response = new HTTPRequest()
+        {
+            Version = "HTTP/1.1",
+            MethodOrCode = "404",
+            PathOrMessage = "Not Found",
+            IsResponse = true
+        };
         var dir = Environment.CurrentDirectory;
-        var fileName = request.Path.Split("/")[2];
+        var fileName = request.PathOrMessage.Split("/")[2];
         var pathFile = $"{dir}/{fileName}";
-        if (request.Method == "POST")
+        if (request.MethodOrCode == "POST")
         {
             await File.WriteAllTextAsync(pathFile, request.Body);
-            response = "HTTP/1.1 201 Created\r\n\r\n";
+            response.MethodOrCode = "201";
+            response.PathOrMessage = "Created";
             return response;
         }
         // the files should be next to the .exe file on the Server or the path is relative from there
         if (File.Exists(pathFile))
         {
             var contentFile = await File.ReadAllTextAsync(pathFile);
-            response =
-                $"{request.Version} 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {contentFile.Length}\r\n\r\n{contentFile}";
+            response.MethodOrCode = "200";
+            response.PathOrMessage = "OK";
+            response.Headers.TryAdd("Content-Type", "application/octet-stream");
+            response.Headers.TryAdd("Content-Length", contentFile.Length.ToString());
+            response.Body = contentFile;
             return response;
         }
         
