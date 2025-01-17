@@ -60,4 +60,3 @@ if __name__ == "__main__":
 
     # Start sending requests
     send_requests(concurrent_requests, path_template, headers)
-

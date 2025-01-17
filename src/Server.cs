@@ -17,7 +17,6 @@ internal class Program
         {
             var socket = server.AcceptSocket(); // wait for client
             Task.Run(() => HandleRequest(socket));
-            
         }
     }
 
@@ -44,7 +43,7 @@ internal class Program
                 Version = line0[2]
             };
             Console.WriteLine($"Got the request {request}");
-            string response;
+            string response  = $"{request.Version} 404 Not Found\r\n\r\n";
             if (request.Path == "/")
                 response = $"{request.Version} 200 OK\r\n\r\n";
             else if (request.Path.StartsWith("/echo/"))
@@ -63,8 +62,19 @@ internal class Program
                 response =
                     $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgentValue.Length}\r\n\r\n{userAgentValue}";
             }
-            else
-                response = $"{request.Version} 404 Not Found\r\n\r\n";
+            else if (request.Path.StartsWith("/files/"))
+            {
+                // the files should be next to the exe file on the Server or the path is relative from there
+                var dir = Environment.CurrentDirectory;
+                var fileName = request.Path.Split("/")[2];
+                var pathFile = $"{dir}/{fileName}";
+                if (File.Exists(pathFile))
+                {
+                    var contentFile = File.ReadAllText(pathFile);
+                    response =
+                        $"{request.Version} 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {contentFile.Length}\r\n\r\n{contentFile}";
+                }
+            }
 
             socket.Send(Encoding.UTF8.GetBytes(response));
             Console.WriteLine($"send the response\n{response}");
