@@ -15,7 +15,7 @@ public class HttpServerHandler
             {// find the first : and then extract the key and value then end the iteration
                 if (lines[i][j] == ':')
                 {
-                    var key = lines[i][..j];
+                    var key = lines[i][..j].ToLower();
                     var value = lines[i][(j + 1)..];
                     value = value.Trim('\r', '\n', ' ');
                     headersDictionary.TryAdd(key, value);
@@ -73,7 +73,7 @@ public class HttpServerHandler
                 headersAsString.AppendLine(line);
             }
             var headers = ParseHeaders(headersAsString.ToString());
-            var bodyLength = int.Parse(headers["Content-Length"]);
+            var bodyLength = int.Parse(headers["content-length"]);
             var body = rawRequest.Split("\r\n\r\n")[1][..bodyLength]; // to skip the null characters
             var request = new HTTPRequest()
             {
@@ -96,15 +96,12 @@ public class HttpServerHandler
 
             if (request.Path.StartsWith("/user-agent"))
             {
-                var header =
-                    linesOfRequest.FirstOrDefault(x =>
-                        x.ToLower().Contains("user-agent: ")); // finding the header from the headers
-                if (header == null)
-                    return "HTTP/1.1 400 Bad Request\r\n\r\n";
-                
-                var userAgentValue = header.Replace(header[..12], ""); // removing the header key leaving the value
-                return
-                    $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgentValue.Length}\r\n\r\n{userAgentValue}";
+                if (headers.TryGetValue("user-agent", out var userAgentValue))
+                {
+                    return
+                        $"{request.Version} 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgentValue.Length}\r\n\r\n{userAgentValue}";
+                }
+                return "HTTP/1.1 400 Bad Request\r\n\r\n";
             }
             if (request.Path.StartsWith("/files/"))
             {
