@@ -1,13 +1,15 @@
-﻿using System.Net.Sockets;
+﻿using System.IO.Compression;
+using System.Net.Sockets;
 using System.Text;
 
 namespace codecrafters_http_server;
 
 public class HttpServerHandler
 {
-    private List<string> SupportedEncodings = new List<string>
+    protected static readonly List<string> SupportedEncodings = new List<string>
     {
-        "gzip"
+        "gzip",
+        "zyad"
     };
     private Dictionary<string, string> ParseHeaders(string headers)
     {
@@ -40,10 +42,9 @@ public class HttpServerHandler
             var requestBuffer = new byte[1024];
             socket.Receive(requestBuffer);
             string rawRequest = Encoding.UTF8.GetString(requestBuffer);
-            var response = (await HandleRequest(rawRequest))
-                .HandleBodyCompression();
-            Console.WriteLine($"Sending the response: {response}");
-            socket.Send(Encoding.UTF8.GetBytes(response));
+            var response = (await HandleRequest(rawRequest)).HandleBodyCompression();
+            Console.WriteLine($"Sending the response:\n{response}");
+            socket.Send(response.GetResponse());
         }
         catch (Exception ex)
         {
@@ -87,8 +88,16 @@ public class HttpServerHandler
                 headersAsString.AppendLine(line);
             }
             var headers = ParseHeaders(headersAsString.ToString());
-            if(headers.TryGetValue("accept-encoding", out var header) && SupportedEncodings.Contains(header))
-                response.Headers.TryAdd("content-encoding", header);
+
+            if (headers.TryGetValue("accept-encoding", out var header))
+            {
+                var listOfEncodings = header.Split(",",StringSplitOptions.TrimEntries);
+                if (listOfEncodings.Any(x => SupportedEncodings.Contains(x)))
+                {
+                    response.Headers.TryAdd("Content-Encoding", header);
+                }
+            }
+
             var bodyLength = int.Parse(headers["content-length"]);
             var body = rawRequest.Split("\r\n\r\n")[1][..bodyLength]; // to skip the null characters
             var request = new HTTPRequest()
@@ -96,7 +105,7 @@ public class HttpServerHandler
                 MethodOrCode = line0[0],
                 PathOrMessage = line0[1],
                 Version = line0[2],
-                Body = body,
+                Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
             };
             Console.WriteLine($"Got the request {request}");
@@ -114,7 +123,18 @@ public class HttpServerHandler
                 response.MethodOrCode = "200";
                 response.Headers.TryAdd("Content-Type", "text/plain");
                 response.Headers.TryAdd("Content-Length", msg.Length.ToString());
-                response.Body = msg;
+                response.Body = Encoding.UTF8.GetBytes(msg);
+                // var bytes = Encoding.UTF8.GetBytes(msg);
+                // using var memoryStream = new MemoryStream();
+                // using var gzipStream =
+                //     new GZipStream(memoryStream, CompressionMode.Compress, true);
+                // gzipStream.Write(bytes, 0, bytes.Length);
+                // gzipStream.Flush();
+                // gzipStream.Close();
+                // var compressed = memoryStream.ToArray();
+                // response.Body = compressed;
+                // response.Headers.TryAdd("Content-Length", compressed.Length.ToString());
+                // response.Headers["Content-Encoding"] = "gzip";
                 return response;
             }
 
@@ -126,7 +146,7 @@ public class HttpServerHandler
                     response.MethodOrCode = "200";
                     response.Headers.TryAdd("Content-Type", "text/plain");
                     response.Headers.TryAdd("Content-Length", userAgentValue.Length.ToString());
-                    response.Body = userAgentValue;
+                    response.Body = Encoding.UTF8.GetBytes(userAgentValue);
                     return response;
                 }
                 response.PathOrMessage = "Bad Request";
@@ -167,7 +187,7 @@ public class HttpServerHandler
         var pathFile = $"{dir}/{fileName}";
         if (request.MethodOrCode == "POST")
         {
-            await File.WriteAllTextAsync(pathFile, request.Body);
+            await File.WriteAllBytesAsync(pathFile, request.Body);
             response.MethodOrCode = "201";
             response.PathOrMessage = "Created";
             return response;
@@ -180,10 +200,11 @@ public class HttpServerHandler
             response.PathOrMessage = "OK";
             response.Headers.TryAdd("Content-Type", "application/octet-stream");
             response.Headers.TryAdd("Content-Length", contentFile.Length.ToString());
-            response.Body = contentFile;
+            response.Body = Encoding.UTF8.GetBytes(contentFile);
             return response;
         }
         
         return response;
     }
+    
 }

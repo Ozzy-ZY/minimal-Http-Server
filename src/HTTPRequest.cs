@@ -9,9 +9,27 @@ public class HTTPRequest()
     public string PathOrMessage { get; set; } // eg. /echo or Forbidden, OK
     public string Version { get; set; }
     public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
-    public string Body { get; set; }
+    public byte[] Body { get; set; }
     
     public bool IsResponse{get;set;}
+
+    public byte[] GetResponse()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.Append($"{Version} {MethodOrCode} {PathOrMessage}");
+        foreach (var header in Headers.Keys)
+        {
+            sb.Append($"\r\n{header}: {Headers[header]}");
+        }
+        sb.Append("\r\n\r\n");
+        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        using var memoryStream = new MemoryStream();
+        memoryStream.Write(bytes, 0, bytes.Length);
+        memoryStream.Write(Body, 0, Body.Length);
+        var response = memoryStream.ToArray();
+        //return [..bytes, ..Body];
+        return response;
+    }
     public override string ToString()
     {
         var sb = new StringBuilder();
@@ -25,9 +43,9 @@ public class HTTPRequest()
         }
         foreach (var header in Headers.Keys)
         {
-            sb.Append("\r\n" + header + ": " + Headers[header]);
+            sb.Append($"\r\n{header}: {Headers[header]}");
         }
-        sb.Append($"\r\n\r\n+ {Body}");
+        sb.Append($"\r\n\r\n{Encoding.UTF8.GetString(Body)}");
         return sb.ToString();
     }
 }

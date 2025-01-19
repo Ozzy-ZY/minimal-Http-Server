@@ -1,15 +1,38 @@
-﻿namespace codecrafters_http_server;
+﻿using System.IO.Compression;
+using System.Text;
+
+namespace codecrafters_http_server;
 
 public static class Extentions
 {
-    public static string HandleBodyCompression(this HTTPRequest response)
+    public static HTTPRequest HandleBodyCompression(this HTTPRequest response)
     {
-        if (!response.Headers.ContainsKey("content-encoding"))
-            return response.ToString();
-        else
+        // Gzip Encoding
+        if (response.Headers.TryGetValue("Content-Encoding", out var header))
         {
-            // to do
-            return response.ToString();
+            if (header.Contains("gzip"))
+            {
+                response.Headers["Content-Encoding"] = "gzip";
+                response.Body = GzipCompress(Encoding.UTF8.GetString(response.Body));
+                response.Headers["Content-Length"] = response.Body.Length.ToString();
+                return response;
+            }
         }
+        return response;
+    }
+
+    private static byte[] GzipCompress(string data)
+    {
+        if (data == null) throw new ArgumentNullException(nameof(data));
+
+        var bytes = Encoding.UTF8.GetBytes(data);
+        using var memoryStream = new MemoryStream();
+        using var gzipStream =
+            new GZipStream(memoryStream, CompressionMode.Compress, true);
+        gzipStream.Write(bytes, 0, bytes.Length);
+        gzipStream.Flush();
+        gzipStream.Close();
+        var compressed = memoryStream.ToArray();
+        return compressed;
     }
 }
