@@ -23,6 +23,11 @@ public class HTTPRequest()
         }
         sb.Append("\r\n\r\n");
         var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        if (Body == null)
+        {
+            return bytes;
+        }
         using var memoryStream = new MemoryStream();
         memoryStream.Write(bytes, 0, bytes.Length);
         memoryStream.Write(Body, 0, Body.Length);
@@ -45,7 +50,12 @@ public class HTTPRequest()
         {
             sb.Append($"\r\n{header}: {Headers[header]}");
         }
-        sb.Append($"\r\n\r\n{Encoding.UTF8.GetString(Body)}");
+        sb.Append("\r\n\r\n");
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        if (Body != null)
+        {
+            sb.Append(Encoding.UTF8.GetString(Body));
+        }
         return sb.ToString();
     }
 }

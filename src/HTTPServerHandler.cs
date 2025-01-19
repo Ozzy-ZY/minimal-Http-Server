@@ -6,7 +6,7 @@ namespace codecrafters_http_server;
 
 public class HttpServerHandler
 {
-    protected static readonly List<string> SupportedEncodings = new List<string>
+    private static readonly List<string> SupportedEncodings = new List<string>
     {
         "gzip",
         "zyad"
